@@ -1,3 +1,4 @@
+use raven_logger::slog;
 use tokio::net::TcpStream;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -33,6 +34,7 @@ impl Protocol {
         let data = std::str::from_utf8(&buf[..n])?;
 
         if Self::detect_websocket(data) {
+            slog!("SERVER", "WebSocket handshake detected");
             return Ok(Protocol::WebSocket);
         } else if Self::detect_http(data) {
             return Ok(Protocol::Http);
