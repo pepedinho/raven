@@ -1,6 +1,9 @@
 
+<h1>
+  <img width="50" height="50" alt="image" src="https://github.com/user-attachments/assets/b5a404e5-a34f-4063-b3a5-fcc072c4dd81" /> 
+  Raven
+</h1>
 
-# Raven
 
 **Raven** is a modular mock server written in Rust, designed to handle multiple network protocols such as HTTP and WebSocket. Its architecture is built to be highly extensible, allowing developers to easily add support for new protocols and customize request handling logic.
 
@@ -14,8 +17,11 @@
 * Async handling with Tokio
 
 ---
+<h2>
+  Planned Features
+</h2>
 
-## Planned Features
+<img src="https://github.com/user-attachments/assets/64cb7b43-49eb-445d-82e3-da7f69c1a91f" width="200" align="right" />
 
 * Lua integration for dynamic protocol handling
 * Persistent client tracking and session management
