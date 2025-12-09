@@ -1,0 +1,35 @@
+[mock.new_game]
+type = "http"
+
+[mock.new_game.match]
+method = "POST"
+path = "/game"
+
+
+[mock.new_game.response]
+status = 200
+
+[mock.new_game.response.header]
+content-type = "application/json"
+
+[mock.new_game.response.options]
+connection_close = false
+
+
+
+[mock.close_game]
+type = "http"
+
+[mock.close_game.match]
+method = "POST"
+path = "/game"
+
+
+[mock.close_game.response]
+status = 200
+
+[mock.close_game.response.header]
+content-type = "application/json"
+
+[mock.close_game.response.options]
+connection_close = false

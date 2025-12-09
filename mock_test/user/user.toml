@@ -1,0 +1,52 @@
+[mock.add_user]
+type = "http"
+
+[mock.add_user.match]
+method = "POST"
+path = "/user"
+
+[mock.add_user.response]
+status = 200
+body = """
+{
+    "id": "{{uuid}}",
+    "name": "ouijela",
+    "email": "ouijema@gmail.com",
+    "created_at": "{{now}}"
+}
+"""
+
+[mock.add_user.response.header]
+content-type = "application/json"
+
+[mock.add_user.response.options]
+delay = "500ms"
+connection_close = false
+
+
+[mock.get_user]
+type = "http"
+
+[mock.get_user.match]
+method = "GET"
+path = "/user/{id}"
+
+[mock.get_user.match.header]
+x-api-key = "test-key"
+
+[mock.get_user.response]
+status = 200
+body = """
+{
+  "id": "{{uuid}}",
+  "name": "John Doe",
+  "created": "{{now}}"
+}
+"""
+
+[mock.get_user.reponse.header]
+content-type = "application/json"
+
+[mock.get_user.response.options]
+delay = "100ms"
+connection_close = false

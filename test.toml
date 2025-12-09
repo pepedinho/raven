@@ -1,0 +1,26 @@
+[mock.get_user]
+type = "http"
+
+[mock.get_user.match]
+method = "GET"
+path = "/user/{id}"
+
+[mock.get_user.match.header]
+x-api-key = "test-key"
+
+[mock.get_user.response]
+status = 200
+body = """
+{
+  "id": "{{uuid}}",
+  "name": "John Doe",
+  "created": "{{now}}"
+}
+"""
+
+[mock.get_user.reponse.header]
+content-type = "application/json"
+
+[mock.get_user.response.options]
+delay = "100ms"
+connection_close = false
