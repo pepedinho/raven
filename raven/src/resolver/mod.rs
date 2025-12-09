@@ -1,5 +1,6 @@
 use tokio::net::TcpStream;
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Protocol {
     Http,
     WebSocket,
