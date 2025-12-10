@@ -36,7 +36,10 @@ impl Cli {
         Ok(mocks.mock)
     }
 
-    pub fn load_mock_dir(root: &Path, dir: &PathBuf) -> anyhow::Result<HashMap<String, MockBlock>> {
+    pub fn load_mock_dir(
+        _root: &Path,
+        dir: &PathBuf,
+    ) -> anyhow::Result<HashMap<String, MockBlock>> {
         let mut all = HashMap::new();
 
         for entry in fs::read_dir(dir)? {
@@ -44,35 +47,46 @@ impl Cli {
             let path = entry.path();
 
             if path.is_dir() {
-                let tmp = Self::load_mock_dir(root, &path)?;
+                let tmp = Self::load_mock_dir(_root, &path)?;
                 all.extend(tmp);
                 continue;
             }
             let mock = Self::load_mock_file(&path)?;
 
-            let namespace = path
-                .parent()
-                .unwrap()
-                .strip_prefix(root)?
-                .iter()
-                .map(|os| os.to_string_lossy())
-                .collect::<Vec<_>>()
-                .join("::");
+            // let namespace = path
+            //     .parent()
+            //     .unwrap()
+            //     .strip_prefix(root)?
+            //     .iter()
+            //     .map(|os| os.to_string_lossy())
+            //     .collect::<Vec<_>>()
+            //     .join("::");
 
-            let filename = path.file_stem().unwrap().to_string_lossy();
+            for (_mock_name, mock) in mock.iter() {
+                let mock_path = &mock.r#match.path.clone();
 
-            let base = if namespace.is_empty() {
-                filename.to_string()
-            } else {
-                namespace
-            };
+                // validate_fs_prefix(&namespace, mock_path)?;
 
-            for (mock_name, mock) in mock.iter() {
-                let key = format!("{}::{}", base, mock_name);
-                all.insert(key, mock.clone());
+                let canonical = canonical_key_from_path(mock_path);
+
+                all.insert(canonical, mock.clone());
             }
         }
 
         Ok(all)
     }
+}
+
+fn canonical_key_from_path(path: &str) -> String {
+    path.split('/')
+        .filter(|s| !s.is_empty())
+        .map(|segment| {
+            if segment.starts_with('{') && segment.ends_with('}') {
+                format!("{{{}}}", &segment[1..segment.len() - 1])
+            } else {
+                segment.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("::")
 }

@@ -3,7 +3,7 @@ type = "http"
 
 [mock.hello.match]
 method = "POST"
-path = "/game"
+path = "/game/new"
 
 
 [mock.hello.response]

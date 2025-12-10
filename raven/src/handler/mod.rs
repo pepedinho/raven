@@ -14,6 +14,31 @@ pub struct HttpHandler;
 pub struct WebSocketHandler;
 pub struct CustomHandler;
 
+fn match_wildcard(request: &str, mock_key: &str) -> Option<HashMap<String, String>> {
+    let req_segments: Vec<&str> = request.split("::").collect();
+    let mock_segments: Vec<&str> = mock_key.split("::").collect();
+
+    if req_segments.len() != mock_segments.len() {
+        return None;
+    }
+
+    let mut params = HashMap::new();
+
+    for (req, mock) in req_segments.iter().zip(mock_segments.iter()) {
+        if mock.starts_with('{') && mock.ends_with('}') {
+            let name = &mock[1..mock.len() - 1];
+            params.insert(name.to_string(), (*req).to_string());
+            continue;
+        }
+
+        if mock != req {
+            return None;
+        }
+    }
+
+    Some(params)
+}
+
 #[async_trait]
 impl ProtocolHandler for HttpHandler {
     async fn handle(
@@ -40,40 +65,31 @@ impl ProtocolHandler for HttpHandler {
             .join("::");
 
         if let Some(mock) = mock_map.get(&path) {
-            let response = mock.response.build();
-
-            if let Some(delay) = &mock.response.options.delay {
-                let duration = humantime::parse_duration(delay)?;
-                tokio::time::sleep(duration).await;
-            }
-            stream.write_all(response.as_bytes()).await?;
-            stream.flush().await?;
-            if mock.response.options.connection_close.unwrap_or(false) {
-                stream.shutdown().await?;
-            }
-        } else {
-            let status_line = "HTTP/1.1 404 Not Found\r\n";
-            let body = "404 Not Found";
-            let headers = format!(
-                "Content-Length: {}\r\nContent-Type: text/plain\r\n",
-                body.len()
-            );
-
-            let response = format!("{}{}\r\n{}", status_line, headers, body);
-            stream.write_all(response.as_bytes()).await?;
-            log!(
-                raven_logger::Protocol::Http,
-                &addr.to_string(),
-                "No mock matched for path {}",
-                request.path
-            );
+            HttpHandler::respond(mock, stream).await?;
         }
 
-        // println!("debug: from ({}) to ({})", request.path, path);
+        let mut candidate: Option<(String, MockBlock, HashMap<String, String>)> = None;
 
-        // println!("request: {:#?}", request);
+        for (key, mock) in mock_map.iter() {
+            if let Some(params) = match_wildcard(&path, key) {
+                if candidate.is_some() {
+                    return Err(anyhow::anyhow!(
+                        "Multiple mocks match path '{}': '{}' and '{}'",
+                        path,
+                        key,
+                        candidate.unwrap().0
+                    ));
+                }
+                candidate = Some((key.clone(), mock.clone(), params));
+            }
+        }
 
-        Ok(())
+        if let Some((_, mock, _params)) = candidate {
+            println!("debug: param find: {:#?}", _params);
+            Self::respond(&mock, stream).await
+        } else {
+            Self::no_mock(stream, &request, addr).await
+        }
     }
 }
 
@@ -89,6 +105,46 @@ impl ProtocolHandler for WebSocketHandler {
             raven_logger::Protocol::WebSocket,
             &addr.to_string(),
             "handling websocket request..."
+        );
+        Ok(())
+    }
+}
+
+impl HttpHandler {
+    async fn respond(mock: &MockBlock, stream: &mut TcpStream) -> anyhow::Result<()> {
+        let response = mock.response.build();
+
+        if let Some(delay) = &mock.response.options.delay {
+            let duration = humantime::parse_duration(delay)?;
+            tokio::time::sleep(duration).await;
+        }
+        stream.write_all(response.as_bytes()).await?;
+        stream.flush().await?;
+        if mock.response.options.connection_close.unwrap_or(false) {
+            stream.shutdown().await?;
+        }
+        Ok(())
+    }
+
+    async fn no_mock(
+        stream: &mut TcpStream,
+        request: &HttpRequest,
+        addr: &SocketAddr,
+    ) -> anyhow::Result<()> {
+        let status_line = "HTTP/1.1 404 Not Found\r\n";
+        let body = "404 Not Found";
+        let headers = format!(
+            "Content-Length: {}\r\nContent-Type: text/plain\r\n",
+            body.len()
+        );
+
+        let response = format!("{}{}\r\n{}", status_line, headers, body);
+        stream.write_all(response.as_bytes()).await?;
+        log!(
+            raven_logger::Protocol::Http,
+            &addr.to_string(),
+            "No mock matched for path {}",
+            request.path
         );
         Ok(())
     }
