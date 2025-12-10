@@ -16,7 +16,6 @@ content-type = "application/json"
 connection_close = false
 
 
-
 [mock.close_game]
 type = "http"
 
