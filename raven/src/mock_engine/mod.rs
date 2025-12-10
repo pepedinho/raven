@@ -21,7 +21,7 @@ pub struct MatchBlock {
     pub method: Option<String>,
 
     /// Path pattern, e.g. "/users/{id}" or regex-like "/users/.*"
-    pub path: Option<String>,
+    pub path: String,
 
     /// Query constraints (exact match per key)
     #[serde(default)]

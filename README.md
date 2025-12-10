@@ -47,30 +47,67 @@
 
 ---
 
-## Mock Engine
+## Mock Matching Configuration
 
-* Mocks are defined in **TOML** files.
-* The mock name comes from the rule defined inside the TOML, not the file name. For example, a file `hello.toml` containing a rule `[mock.goodbye]` will produce the path `game::new::goodbye` if located in `mock_test/game/new/hello.toml`.
-* Supports hierarchical directory structure, e.g.:
+### Declaring an HTTP Mock
 
-```zsh
-mock_test
-├── game
-│   ├── game.toml
-│   └── new
-│       └── hello.toml  # contains rule [mock.goodbye]
-└── user
-    └── user.toml
+Mocks are declared using a TOML file.\
+Each rule lives under a `mock.<rule_name>` section.\
+Only the content of the `match` block determines how a request is
+routed.\
+The filesystem layout does **not** influence matching.
+
+The **path** field is mandatory and acts as the single source of truth.
+
+------------------------------------------------------------------------
+
+### Example
+
+``` toml
+[mock.get_user]
+type = "http"
+
+[mock.get_user.match]
+method = "GET"
+path = "/user/{id}"
+
+[mock.get_user.match.header]
+x-api-key = "test-key"
+
+[mock.get_user.response]
+status = 200
+body = """
+{
+  "id": "{{uuid}}",
+  "name": "John Doe",
+  "created": "{{now}}"
+}
+"""
+
+[mock.get_user.response.header]
+content-type = "application/json"
+
+[mock.get_user.response.options]
+delay = "100ms"
+connection_close = false
 ```
 
-* HTTP mocks support:
+------------------------------------------------------------------------
 
-  * Method and path matching
-  * Header validation
-  * Custom response body, status, headers, and options (like delay or connection close)
-* Dynamic path parameters supported with `{param}` syntax.
+### How Matching Works
 
----
+-   The server compares the incoming request to the
+    `[mock.<name>.match]` block.
+-   Dynamic path segments like `{id}` are extracted automatically.
+-   All headers declared under `match.header` must match exactly.
+-   The response is constructed from the `[mock.<name>.response]`
+    section:
+    -   `status`
+    -   `body`
+    -   `header`
+    -   `options` (delay, connection behavior, ...)
+
+------------------------------------------------------------------------
 
 ## CLI Usage
 
