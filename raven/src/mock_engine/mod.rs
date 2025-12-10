@@ -59,3 +59,44 @@ pub struct ResponseOptions {
 fn default_status() -> u16 {
     200
 }
+
+impl ResponseBlock {
+    pub fn build(&self) -> String {
+        let status_line = format!(
+            "HTTP/1.1 {} {}\r\n",
+            self.status,
+            match self.status {
+                200 => "OK",
+                201 => "Created",
+                400 => "Bad Request",
+                404 => "Not found",
+                500 => "Internal Server Error",
+                _ => "Unknown",
+            }
+        );
+
+        let mut headers = self.headers.clone();
+
+        if let Some(body) = &self.body {
+            headers
+                .entry("Content-Length".to_string())
+                .or_insert(body.len().to_string());
+        } else {
+            headers
+                .entry("Content-Length".to_string())
+                .or_insert("0".to_string());
+        }
+
+        let headers_str = headers
+            .iter()
+            .map(|(k, v)| {
+                let clean_v = v.replace("\r", "").replace("\n", "");
+                format!("{}: {}\r\n", k, clean_v)
+            })
+            .collect::<String>();
+
+        let body_str = self.body.clone().unwrap_or_default();
+
+        format!("{}{}\r\n{}", status_line, headers_str, body_str)
+    }
+}

@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser;
 
@@ -32,7 +36,7 @@ impl Cli {
         Ok(mocks.mock)
     }
 
-    pub fn load_mock_dir(dir: &PathBuf) -> anyhow::Result<HashMap<String, MockBlock>> {
+    pub fn load_mock_dir(root: &Path, dir: &PathBuf) -> anyhow::Result<HashMap<String, MockBlock>> {
         let mut all = HashMap::new();
 
         for entry in fs::read_dir(dir)? {
@@ -40,21 +44,31 @@ impl Cli {
             let path = entry.path();
 
             if path.is_dir() {
-                let tmp = Self::load_mock_dir(&path)?;
+                let tmp = Self::load_mock_dir(root, &path)?;
                 all.extend(tmp);
                 continue;
             }
+            let mock = Self::load_mock_file(&path)?;
 
-            if path.extension().and_then(|s| s.to_str()) != Some("toml") {
-                continue;
-            }
+            let namespace = path
+                .parent()
+                .unwrap()
+                .strip_prefix(root)?
+                .iter()
+                .map(|os| os.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("::");
 
             let filename = path.file_stem().unwrap().to_string_lossy();
 
-            let mock = Self::load_mock_file(&path)?;
+            let base = if namespace.is_empty() {
+                filename.to_string()
+            } else {
+                namespace
+            };
 
             for (mock_name, mock) in mock.iter() {
-                let key = format!("{}::{}", filename, mock_name);
+                let key = format!("{}::{}", base, mock_name);
                 all.insert(key, mock.clone());
             }
         }

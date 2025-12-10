@@ -1,0 +1,24 @@
+[mock.hello]
+type = "http"
+
+[mock.hello.match]
+method = "POST"
+path = "/game"
+
+
+[mock.hello.response]
+status = 200
+body = """
+{
+    "id": "{{uuid}}",
+    "name": "ouijela",
+    "email": "ouijema@gmail.com",
+    "created_at": "{{now}}"
+}
+"""
+
+[mock.hello.response.header]
+content-type = "application/json"
+
+[mock.hello.response.options]
+connection_close = false
