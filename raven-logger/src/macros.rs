@@ -11,3 +11,10 @@ macro_rules! slog {
         $crate::Logger::slog($author, &format!($($arg)*))
     };
 }
+
+#[macro_export]
+macro_rules! mismatch {
+    ($protocol:expr, $sender:expr, $err:expr) => {
+        $crate::Logger::mismatch($protocol, $sender, $err)
+    };
+}

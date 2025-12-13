@@ -1,6 +1,6 @@
 pub mod traits;
 use async_trait::async_trait;
-use raven_logger::log;
+use raven_logger::{MatchError, Protocol, log, mismatch};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{io::AsyncWriteExt, net::TcpStream};
 
@@ -65,19 +65,27 @@ impl ProtocolHandler for HttpHandler {
             .join("::");
 
         if let Some(mock) = mock_map.get(&path) {
-            HttpHandler::respond(mock, stream).await?;
+            match mock.r#match.matches(&request) {
+                Ok(()) => {
+                    HttpHandler::respond(mock, stream).await?;
+                }
+                Err(e) => {
+                    HttpHandler::mismatch(stream, addr, &e).await?;
+                }
+            }
+            return Ok(());
         }
 
         let mut candidate: Option<(String, MockBlock, HashMap<String, String>)> = None;
 
         for (key, mock) in mock_map.iter() {
             if let Some(params) = match_wildcard(&path, key) {
-                if candidate.is_some() {
+                if let Some(c) = candidate {
                     return Err(anyhow::anyhow!(
                         "Multiple mocks match path '{}': '{}' and '{}'",
                         path,
                         key,
-                        candidate.unwrap().0
+                        c.0
                     ));
                 }
                 candidate = Some((key.clone(), mock.clone(), params));
@@ -86,7 +94,10 @@ impl ProtocolHandler for HttpHandler {
 
         if let Some((_, mock, _params)) = candidate {
             println!("debug: param find: {:#?}", _params);
-            Self::respond(&mock, stream).await
+            match mock.r#match.matches(&request) {
+                Ok(()) => HttpHandler::respond(&mock, stream).await,
+                Err(e) => HttpHandler::mismatch(stream, addr, &e).await,
+            }
         } else {
             Self::no_mock(stream, &request, addr).await
         }
@@ -146,6 +157,62 @@ impl HttpHandler {
             "No mock matched for path {}",
             request.path
         );
+        Ok(())
+    }
+
+    async fn mismatch(
+        stream: &mut TcpStream,
+        addr: &SocketAddr,
+        err: &MatchError,
+    ) -> anyhow::Result<()> {
+        let msg = match err {
+            MatchError::MethodMismatch { expected, found } => {
+                format!("Method mismatch: expected '{}', got '{}'", expected, found)
+            }
+            MatchError::QueryMismatch {
+                key,
+                expected,
+                found,
+            } => {
+                format!(
+                    "Query mismatch on '{}': expected '{}', got '{:?}'",
+                    key, expected, found
+                )
+            }
+            MatchError::HeaderMismatch {
+                key,
+                expected,
+                found,
+            } => {
+                format!(
+                    "Header mismatch on '{}': expected '{}', got '{:?}'",
+                    key, expected, found
+                )
+            }
+            MatchError::BodyMismatch { expected, found } => {
+                format!("Body mismatch: expected '{}', got '{}'", expected, found)
+            }
+        };
+
+        // log!(
+        //     raven_logger::Protocol::Http,
+        //     &addr.to_string(),
+        //     "No mock matched for path {}",
+        //     request.path
+        // );
+
+        mismatch!(Protocol::Http, &addr.to_string(), err);
+
+        let response = format!(
+            "HTTP/1.1 422 Unprocessable Entity\r\n\
+             Content-Type: text/plain\r\n\
+             Content-Length: {}\r\n\
+             \r\n{}",
+            msg.len(),
+            msg
+        );
+
+        stream.write_all(response.as_bytes()).await?;
         Ok(())
     }
 }

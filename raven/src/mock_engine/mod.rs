@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
+use raven_logger::MatchError;
 use serde::Deserialize;
+
+use crate::request::http::HttpRequest;
 
 #[derive(Deserialize, Debug)]
 pub struct MockDefinition {
@@ -99,4 +102,76 @@ impl ResponseBlock {
 
         format!("{}{}\r\n{}", status_line, headers_str, body_str)
     }
+}
+
+impl MatchBlock {
+    pub fn matches(&self, req: &HttpRequest) -> Result<(), MatchError> {
+        // 1) METHOD
+        if let Some(ref expected) = self.method
+            && expected != &req.method
+        {
+            return Err(MatchError::MethodMismatch {
+                expected: expected.clone(),
+                found: req.method.clone(),
+            });
+        }
+
+        // 2) QUERY
+        if !&self.query.is_empty() {
+            let query_map = req
+                .path
+                .split('?')
+                .nth(1)
+                .map(parse_query)
+                .unwrap_or_default();
+
+            for (key, expected) in &self.query {
+                let found = query_map.get(key).cloned();
+
+                if found.as_deref() != Some(expected) {
+                    return Err(MatchError::QueryMismatch {
+                        key: key.clone(),
+                        expected: expected.clone(),
+                        found: found.unwrap_or_default(),
+                    });
+                }
+            }
+        }
+
+        // 3) HEADERS
+        for (key, expected) in &self.header {
+            let found = req.headers.get(key).cloned();
+
+            if found.as_deref() != Some(expected) {
+                return Err(MatchError::HeaderMismatch {
+                    key: key.clone(),
+                    expected: expected.clone(),
+                    found: found.unwrap_or_default(),
+                });
+            }
+        }
+
+        // 4) BODY
+        if let Some(ref expected) = self.body
+            && expected != &req.body
+        {
+            return Err(MatchError::BodyMismatch {
+                expected: expected.clone(),
+                found: req.body.clone(),
+            });
+        }
+
+        Ok(())
+    }
+}
+
+fn parse_query(q: &str) -> HashMap<String, String> {
+    q.split('&')
+        .filter_map(|pair| {
+            let mut it = pair.split('=');
+            let key = it.next()?.to_string();
+            let val = it.next().unwrap_or("").to_string();
+            Some((key, val))
+        })
+        .collect()
 }
