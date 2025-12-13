@@ -10,18 +10,6 @@ use raven::{
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // let mock_map = match (&cli.mock, &cli.mocks) {
-    //     (Some(file), _) => Cli::load_mock_file(file)?,
-    //     (_, Some(dir)) => Cli::load_mock_dir(dir)?,
-    //     _ => {
-    //         return Err(anyhow::anyhow!(
-    //             "You must provide etiher --mock <file> or --mocks <dir>"
-    //         ));
-    //     }
-    // };
-
-    // let content = std::fs::read_to_string("test.toml")?;
-    // let parsed: MockDefinition = toml::from_str(&content)?;
     let listener = Arc::new(Perch::new(&cli)?);
 
     println!("Successfully loaded {} mocks", listener.mock_map.len());

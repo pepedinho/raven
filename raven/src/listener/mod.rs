@@ -26,6 +26,7 @@ pub trait Listener: Send + Sync + 'static {
 pub struct Client {}
 
 /// Perch is concretly the Listener we use to Listen clients requests
+#[allow(dead_code)]
 pub struct Perch {
     port: u16,
     clients: HashMap<String, Client>,
@@ -57,10 +58,6 @@ impl Perch {
             mock_map,
             handlers,
         })
-    }
-
-    pub fn check_client(&self, addr: &str) -> Option<Client> {
-        self.clients.get(addr).cloned()
     }
 }
 

@@ -14,7 +14,7 @@ pub struct HttpHandler;
 pub struct WebSocketHandler;
 pub struct CustomHandler;
 
-fn match_wildcard(request: &str, mock_key: &str) -> Option<HashMap<String, String>> {
+pub fn match_wildcard(request: &str, mock_key: &str) -> Option<HashMap<String, String>> {
     let req_segments: Vec<&str> = request.split("::").collect();
     let mock_segments: Vec<&str> = mock_key.split("::").collect();
 
