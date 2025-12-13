@@ -6,7 +6,10 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 use crate::{
     handler::traits::ProtocolHandler,
-    mock_engine::MockBlock,
+    mock_engine::{
+        MockBlock,
+        matcher::{HttpResolver, Resolution, Resolver},
+    },
     request::{Request, http::HttpRequest},
 };
 
@@ -47,6 +50,7 @@ impl ProtocolHandler for HttpHandler {
         addr: &SocketAddr,
         mock_map: Arc<HashMap<String, MockBlock>>,
     ) -> anyhow::Result<()> {
+        let resolver = HttpResolver;
         log!(
             raven_logger::Protocol::Http,
             &addr.to_string(),
@@ -55,52 +59,18 @@ impl ProtocolHandler for HttpHandler {
 
         let request = HttpRequest::parse(stream).await?;
 
-        let path = request
-            .path
-            .trim_start_matches('/')
-            .trim_end_matches('/')
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>()
-            .join("::");
-
-        if let Some(mock) = mock_map.get(&path) {
-            match mock.r#match.matches(&request) {
-                Ok(()) => {
-                    HttpHandler::respond(mock, stream).await?;
-                }
-                Err(e) => {
-                    HttpHandler::mismatch(stream, addr, &e).await?;
-                }
+        match resolver.resolve(&request, &mock_map)? {
+            Resolution::Matched { mock, .. } => {
+                HttpHandler::respond(mock, stream).await?;
             }
-            return Ok(());
-        }
-
-        let mut candidate: Option<(String, MockBlock, HashMap<String, String>)> = None;
-
-        for (key, mock) in mock_map.iter() {
-            if let Some(params) = match_wildcard(&path, key) {
-                if let Some(c) = candidate {
-                    return Err(anyhow::anyhow!(
-                        "Multiple mocks match path '{}': '{}' and '{}'",
-                        path,
-                        key,
-                        c.0
-                    ));
-                }
-                candidate = Some((key.clone(), mock.clone(), params));
+            Resolution::Mismatch { diagnostics } => {
+                HttpHandler::mismatch(stream, addr, &diagnostics).await?;
+            }
+            Resolution::NotFound => {
+                HttpHandler::no_mock(stream, &request, addr).await?;
             }
         }
-
-        if let Some((_, mock, _params)) = candidate {
-            println!("debug: param find: {:#?}", _params);
-            match mock.r#match.matches(&request) {
-                Ok(()) => HttpHandler::respond(&mock, stream).await,
-                Err(e) => HttpHandler::mismatch(stream, addr, &e).await,
-            }
-        } else {
-            Self::no_mock(stream, &request, addr).await
-        }
+        Ok(())
     }
 }
 
@@ -193,13 +163,6 @@ impl HttpHandler {
                 format!("Body mismatch: expected '{}', got '{}'", expected, found)
             }
         };
-
-        // log!(
-        //     raven_logger::Protocol::Http,
-        //     &addr.to_string(),
-        //     "No mock matched for path {}",
-        //     request.path
-        // );
 
         mismatch!(Protocol::Http, &addr.to_string(), err);
 

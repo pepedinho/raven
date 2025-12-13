@@ -10,6 +10,7 @@ fn base_request() -> HttpRequest {
         version: "HTTP/1.1".into(),
         headers: HashMap::from([("content-type".into(), "application/json".into())]),
         body: "{\"ok\":true}".into(),
+        query: HashMap::default(),
     }
 }
 

@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use raven_logger::MatchError;
 use serde::Deserialize;
 
-use crate::request::http::HttpRequest;
+use crate::request::ResolvableRequest;
+
+pub mod matcher;
 
 #[derive(Deserialize, Debug)]
 pub struct MockDefinition {
@@ -105,73 +107,68 @@ impl ResponseBlock {
 }
 
 impl MatchBlock {
-    pub fn matches(&self, req: &HttpRequest) -> Result<(), MatchError> {
+    pub fn matches<R: ResolvableRequest>(&self, req: &R) -> Result<(), MatchError> {
         // 1) METHOD
-        if let Some(ref expected) = self.method
-            && expected != &req.method
-        {
-            return Err(MatchError::MethodMismatch {
-                expected: expected.clone(),
-                found: req.method.clone(),
-            });
+        if let Some(ref expected) = self.method {
+            let found = req.action().unwrap_or_default();
+            if expected != found {
+                return Err(MatchError::MethodMismatch {
+                    expected: expected.clone(),
+                    found: found.to_string(),
+                });
+            }
         }
 
         // 2) QUERY
         if !&self.query.is_empty() {
-            let query_map = req
-                .path
-                .split('?')
-                .nth(1)
-                .map(parse_query)
-                .unwrap_or_default();
+            let req_query = req.query();
 
             for (key, expected) in &self.query {
-                let found = query_map.get(key).cloned();
+                match req_query.get(key) {
+                    None => {
+                        return Err(MatchError::QueryMismatch {
+                            key: key.clone(),
+                            expected: expected.clone(),
+                            found: None,
+                        });
+                    }
 
-                if found.as_deref() != Some(expected) {
-                    return Err(MatchError::QueryMismatch {
-                        key: key.clone(),
-                        expected: expected.clone(),
-                        found: found.unwrap_or_default(),
-                    });
+                    Some(values) if !values.iter().any(|v| v == expected) => {
+                        return Err(MatchError::QueryMismatch {
+                            key: key.clone(),
+                            expected: expected.clone(),
+                            found: Some(values.clone()),
+                        });
+                    }
+
+                    Some(_) => {}
                 }
             }
         }
 
         // 3) HEADERS
         for (key, expected) in &self.header {
-            let found = req.headers.get(key).cloned();
+            let found = req.headers().get(key);
 
-            if found.as_deref() != Some(expected) {
+            if found.map(String::as_str) != Some(expected) {
                 return Err(MatchError::HeaderMismatch {
                     key: key.clone(),
                     expected: expected.clone(),
-                    found: found.unwrap_or_default(),
+                    found: found.cloned(),
                 });
             }
         }
 
         // 4) BODY
-        if let Some(ref expected) = self.body
-            && expected != &req.body
+        if let Some(expected) = &self.body
+            && expected != req.body()
         {
             return Err(MatchError::BodyMismatch {
                 expected: expected.clone(),
-                found: req.body.clone(),
+                found: req.body().to_string(),
             });
         }
 
         Ok(())
     }
-}
-
-fn parse_query(q: &str) -> HashMap<String, String> {
-    q.split('&')
-        .filter_map(|pair| {
-            let mut it = pair.split('=');
-            let key = it.next()?.to_string();
-            let val = it.next().unwrap_or("").to_string();
-            Some((key, val))
-        })
-        .collect()
 }
