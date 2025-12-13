@@ -50,12 +50,12 @@ pub enum MatchError {
     QueryMismatch {
         key: String,
         expected: String,
-        found: String,
+        found: Option<Vec<String>>,
     },
     HeaderMismatch {
         key: String,
         expected: String,
-        found: String,
+        found: Option<String>,
     },
     BodyMismatch {
         expected: String,
@@ -88,11 +88,11 @@ impl MatchError {
                 format!("expected: {} = {}", key, expected.green()),
                 format!(
                     "found   : {}",
-                    if found.is_empty() {
-                        "<missing>".red()
-                    } else {
-                        found.red()
-                    }
+                    found
+                        .as_ref()
+                        .map(|v| v.join(", "))
+                        .unwrap_or_else(|| "<missing>".into())
+                        .red()
                 ),
             ],
 
@@ -104,11 +104,7 @@ impl MatchError {
                 format!("expected: {} = {}", key, expected.green()),
                 format!(
                     "found   : {}",
-                    if found.is_empty() {
-                        "<missing>".red()
-                    } else {
-                        found.red()
-                    }
+                    found.clone().unwrap_or("<missing>".into()).red()
                 ),
             ],
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
-use crate::request::Request;
+use crate::request::{Request, ResolvableRequest};
 
 #[derive(Debug)]
 pub struct HttpRequest {
@@ -11,6 +11,25 @@ pub struct HttpRequest {
     pub version: String,
     pub headers: HashMap<String, String>,
     pub body: String,
+
+    pub query: HashMap<String, Vec<String>>,
+}
+
+fn parse_query(q: &str) -> HashMap<String, Vec<String>> {
+    let mut map = HashMap::new();
+
+    for pair in q.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+
+        let mut it = pair.splitn(2, '=');
+        let key = it.next().unwrap().to_string();
+        let value = it.next().unwrap_or("").to_string();
+
+        map.entry(key).or_insert_with(Vec::new).push(value);
+    }
+    map
 }
 
 #[async_trait::async_trait]
@@ -84,12 +103,40 @@ impl Request for HttpRequest {
             }
         }
 
+        let (path_only, query) = match path.split_once('?') {
+            Some((p, q)) => (p.to_string(), parse_query(q)),
+            None => (path.clone(), HashMap::new()),
+        };
+
         Ok(HttpRequest {
             method,
-            path,
+            path: path_only,
             version,
             headers,
             body,
+            query,
         })
+    }
+}
+
+impl ResolvableRequest for HttpRequest {
+    fn route(&self) -> &str {
+        &self.path
+    }
+
+    fn action(&self) -> Option<&str> {
+        Some(&self.method)
+    }
+
+    fn headers(&self) -> &HashMap<String, String> {
+        &self.headers
+    }
+
+    fn body(&self) -> &str {
+        &self.body
+    }
+
+    fn query(&self) -> &HashMap<String, Vec<String>> {
+        &self.query
     }
 }
