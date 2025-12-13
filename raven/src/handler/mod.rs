@@ -80,12 +80,12 @@ impl ProtocolHandler for HttpHandler {
 
         for (key, mock) in mock_map.iter() {
             if let Some(params) = match_wildcard(&path, key) {
-                if candidate.is_some() {
+                if let Some(c) = candidate {
                     return Err(anyhow::anyhow!(
                         "Multiple mocks match path '{}': '{}' and '{}'",
                         path,
                         key,
-                        candidate.unwrap().0
+                        c.0
                     ));
                 }
                 candidate = Some((key.clone(), mock.clone(), params));
