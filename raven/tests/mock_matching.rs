@@ -46,5 +46,3 @@ fn query_mismatch() {
 
     assert!(matcher.matches(&base_request()).is_err());
 }
-
-
