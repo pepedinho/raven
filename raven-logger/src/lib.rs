@@ -42,6 +42,84 @@ pub enum Channel {
     File(String),
 }
 
+pub enum MatchError {
+    MethodMismatch {
+        expected: String,
+        found: String,
+    },
+    QueryMismatch {
+        key: String,
+        expected: String,
+        found: String,
+    },
+    HeaderMismatch {
+        key: String,
+        expected: String,
+        found: String,
+    },
+    BodyMismatch {
+        expected: String,
+        found: String,
+    },
+}
+
+impl MatchError {
+    pub fn label(&self) -> &'static str {
+        match self {
+            MatchError::MethodMismatch { .. } => "METHOD",
+            MatchError::QueryMismatch { .. } => "QUERY",
+            MatchError::HeaderMismatch { .. } => "HEADER",
+            MatchError::BodyMismatch { .. } => "BODY",
+        }
+    }
+
+    pub fn diff_lines(&self) -> Vec<String> {
+        match self {
+            MatchError::MethodMismatch { expected, found } => vec![
+                format!("expected: {}", expected.green()),
+                format!("found   : {}", found.red()),
+            ],
+
+            MatchError::QueryMismatch {
+                key,
+                expected,
+                found,
+            } => vec![
+                format!("expected: {} = {}", key, expected.green()),
+                format!(
+                    "found   : {}",
+                    if found.is_empty() {
+                        "<missing>".red()
+                    } else {
+                        found.red()
+                    }
+                ),
+            ],
+
+            MatchError::HeaderMismatch {
+                key,
+                expected,
+                found,
+            } => vec![
+                format!("expected: {} = {}", key, expected.green()),
+                format!(
+                    "found   : {}",
+                    if found.is_empty() {
+                        "<missing>".red()
+                    } else {
+                        found.red()
+                    }
+                ),
+            ],
+
+            MatchError::BodyMismatch { expected, found } => vec![
+                format!("expected: {}", expected.green()),
+                format!("found   : {}", found.red()),
+            ],
+        }
+    }
+}
+
 pub struct Logger {
     channel: Channel,
 }
@@ -88,4 +166,57 @@ impl Logger {
 
         Self::dispatch(&formated);
     }
+
+    pub fn mismatch(protocol: Protocol, sender: &str, kind: &MatchError) {
+        let header = format!(
+            "{:^8} {:<20} {}",
+            protocol.style(),
+            format!("[{}]", sender.bold()),
+            kind.label().on_red().white().bold()
+        );
+
+        let header_width = strip_ainsi(&header).len() - 1;
+
+        let indent = " ".repeat(header_width);
+
+        let diff_lines = kind.diff_lines();
+
+        let mut out = String::new();
+        out.push_str(&header);
+        out.push('\n');
+
+        for (i, line) in diff_lines.iter().enumerate() {
+            let branch = if i + 1 == diff_lines.len() {
+                "└── "
+            } else {
+                "├── "
+            };
+
+            out.push_str(&indent);
+            out.push_str(branch);
+            out.push_str(&format!("{}", line.bold()));
+            out.push('\n');
+        }
+
+        Self::dispatch(out.trim_end());
+    }
+}
+
+fn strip_ainsi(s: &str) -> String {
+    let mut res = String::new();
+    let mut chars = s.chars();
+
+    let iter = chars.by_ref();
+    while let Some(c) = iter.next() {
+        if c == '\x1b' {
+            for c in iter.by_ref() {
+                if c == 'm' {
+                    break;
+                }
+            }
+        } else {
+            res.push(c);
+        }
+    }
+    res
 }
