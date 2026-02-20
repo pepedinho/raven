@@ -24,3 +24,20 @@ content-type = "application/json"
 [mock.get_user.response.options]
 delay = "100ms"
 connection_close = false
+
+[mock.test]
+type = "http"
+
+[mock.test.match]
+method = "GET"
+path = "/test"
+
+[mock.test.response]
+status = 200
+body = "<h1>oui<h1\\>"
+
+[mock.test.response.header]
+content-type = "text/html"
+
+[mock.test.response.options]
+connection_close = true

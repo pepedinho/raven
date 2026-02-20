@@ -40,7 +40,21 @@ impl Cli {
         _root: &Path,
         dir: &PathBuf,
     ) -> anyhow::Result<HashMap<String, MockBlock>> {
+        println!("load mock from {}", dir.display());
         let mut all = HashMap::new();
+
+        let to_canonical = |mocks: HashMap<String, MockBlock>| {
+            mocks.into_values().map(|mock| {
+                let canonical = canonical_key_from_path(&mock.r#match.path);
+                (canonical, mock)
+            })
+        };
+
+        if !dir.is_dir() {
+            let mocks = Self::load_mock_file(dir)?;
+            all.extend(to_canonical(mocks));
+            return Ok(all);
+        }
 
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -62,15 +76,8 @@ impl Cli {
             //     .collect::<Vec<_>>()
             //     .join("::");
 
-            for (_mock_name, mock) in mock.iter() {
-                let mock_path = &mock.r#match.path.clone();
-
-                // validate_fs_prefix(&namespace, mock_path)?;
-
-                let canonical = canonical_key_from_path(mock_path);
-
-                all.insert(canonical, mock.clone());
-            }
+            println!("mock size: {}", mock.len());
+            all.extend(to_canonical(mock));
         }
 
         Ok(all)

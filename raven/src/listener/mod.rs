@@ -43,7 +43,7 @@ impl Perch {
         handlers.insert(Protocol::Custom, Arc::new(CustomHandler));
 
         let mock_map = match (&cli.mock, &cli.mocks) {
-            (Some(file), _) => Arc::new(Cli::load_mock_file(file)?),
+            (Some(file), _) => Arc::new(Cli::load_mock_dir(file, file)?),
             (_, Some(dir)) => Arc::new(Cli::load_mock_dir(dir, dir)?),
             _ => {
                 return Err(anyhow::anyhow!(
